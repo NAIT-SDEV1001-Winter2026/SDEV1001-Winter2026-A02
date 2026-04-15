@@ -2,36 +2,7 @@ from flask import Flask, request, jsonify
 import csv
 app = Flask(__name__)
 
-ufo_sightings = [
-    {
-        "datetime": "10/10/1949 20:30",
-        "city": "san marcos",
-        "state": "tx",
-        "country": "us",
-        "shape": "cylinder",
-        "duration (seconds)": "2700",
-        "duration (hours/min)": "45 minutes",
-        "comments": "This event took place in early fall around 1949-50. It occurred after a Boy Scout meeting in the Baptist Church. The Baptist Church sit",
-        "date posted": "4/27/2004",
-        "latitude": "29.8830556",
-        "longitude": "-97.9411111"
-    },
-    {
-        "datetime": "10/10/1949 21:00",
-        "city": "lackland afb",
-        "state": "tx",
-        "country": "",
-        "shape": "light",
-        "duration (seconds)": "7200",
-        "duration (hours/min)": "1-2 hrs",
-        "comments": "1949 Lackland AFB&#44 TX.  Lights racing across the sky &amp; making 90 degree turns on a dime.",
-        "date posted": "12/16/2005",
-        "latitude": "29.38421",
-        "longitude": "-98.581082"
-    }
-]
-
-@app.route('/')
+@app.route("/")
 def home():
     return """
     <html>
@@ -45,18 +16,35 @@ def home():
     </html>
     """
 
-@app.route('/sightings', methods=['GET'])
+# http://127.0.0.1:5000/sightings?country=US&page=3&per_page=5
+@app.route("/sightings", methods=["GET"])
 def get_sightings():
     country = request.args.get('country', '')
-    scrubbed_sightings = load_ufo_data('scrubbed.csv')
-    return jsonify(scrubbed_sightings)
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 10))
+
+    ufo_sightings = load_ufo_data('scrubbed.csv')
+    filter_sightings = []
+
+    if not country:
+        return jsonify(ufo_sightings)
+
+    for sighting in ufo_sightings:
+        if country.upper() == sighting['country'].upper():
+            filter_sightings.append(sighting)
+
+    start = (page - 1) * per_page
+    end = start + per_page
     
+    return jsonify(filter_sightings[start:end])
+
 def load_ufo_data(filepath):
     sightings = []
     with open(filepath, mode='r', encoding='utf-8') as file:
         csv_reader = csv.DictReader(file)
         for row in csv_reader:
             sightings.append(row)
+
     return sightings
 
 @app.route('/top_ten', methods=['GET'])  
@@ -92,12 +80,13 @@ def add_research_station():
     data = request.get_json()
     name = data.get('name')
     location = data.get('location')
+
     if not name or not location:
-        # the second parameter is status code 400 for bad request
-        return jsonify({'error': 'Name and location are required'}), 400
-    # below we append the new research station to the CSV file
+        return jsonify({'error':'Name and location are required'}), 400
+    
     with open('research_stations.csv', mode='a', newline='') as file:
-        fieldnames = ['name', 'location']
+        fieldnames = ['name','location']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writerow({'name': name, 'location': location})
-    return jsonify({'message': 'Research station added successfully'}), 201
+    
+    return jsonify({'message': 'Research station added!'}), 201
